@@ -1,6 +1,7 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { SearchBar } from "@/components/SearchBar";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -53,10 +54,7 @@ function AppLayout() {
         >
           POLYCHART
         </div>
-        {/* SearchBar will go here */}
-        <div style={{ padding: 14, color: "var(--text-muted)", fontSize: 12 }}>
-          Search coming soon…
-        </div>
+        <SearchBar />
       </aside>
 
       {/* Main area */}

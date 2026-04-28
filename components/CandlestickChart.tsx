@@ -201,13 +201,16 @@ export function CandlestickChart({
     if (!candleSeriesRef.current || !volumeSeriesRef.current || candles.length === 0) return;
 
     // Lightweight Charts requires strictly ascending timestamps with zero duplicates.
-    // Deduplicate by timestamp (last write wins), then sort ascending.
+    // Force Number() coercion so string-typed timestamps from JSON don't create
+    // phantom duplicate keys in the Map.
     const deduped = Array.from(
       candles.reduce((map, c) => {
-        map.set(c.time as number, c);
+        map.set(Number(c.time), c);
         return map;
       }, new Map<number, typeof candles[0]>()).values()
-    ).sort((a, b) => (a.time as number) - (b.time as number));
+    )
+      .sort((a, b) => Number(a.time) - Number(b.time))
+      .map(c => ({ ...c, time: Number(c.time) })); // ensure time is always a plain number
 
     const candleData: CandlestickData[] = deduped.map((c) => ({
       time: c.time as Time,

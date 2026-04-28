@@ -46,10 +46,10 @@ export function aggregateTrades(
     });
   }
 
-  // Deduplicate and sort (last write wins for duplicate bucket timestamps)
+  // Deduplicate and sort — use Number() to guard against string-typed timestamps from JSON
   const deduped = new Map<number, CandleData>();
-  for (const c of candles) deduped.set(c.time as number, c);
-  return Array.from(deduped.values()).sort((a, b) => (a.time as number) - (b.time as number));
+  for (const c of candles) deduped.set(Number(c.time), { ...c, time: Number(c.time) });
+  return Array.from(deduped.values()).sort((a, b) => Number(a.time) - Number(b.time));
 }
 
 // ─── Convert price history points to candles ──────────────────────────────────
@@ -100,10 +100,8 @@ export function mergeCandles(
 ): CandleData[] {
   const map = new Map<number, CandleData>();
 
-  for (const c of existing) map.set(c.time as unknown as number, c);
-  for (const c of incoming) map.set(c.time as unknown as number, c); // incoming overwrites
+  for (const c of existing) map.set(Number(c.time), { ...c, time: Number(c.time) });
+  for (const c of incoming) map.set(Number(c.time), { ...c, time: Number(c.time) }); // incoming overwrites
 
-  return Array.from(map.values()).sort(
-    (a, b) => (a.time as unknown as number) - (b.time as unknown as number)
-  );
+  return Array.from(map.values()).sort((a, b) => Number(a.time) - Number(b.time));
 }

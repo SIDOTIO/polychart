@@ -306,7 +306,6 @@ export function SearchBar() {
       )}
 
       {/* Spin animation */}
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

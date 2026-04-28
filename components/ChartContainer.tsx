@@ -151,7 +151,6 @@ export function ChartContainer() {
         />
       </div>
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

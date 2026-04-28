@@ -48,3 +48,16 @@ input, button {
 @layer utilities {
   .text-balance { text-wrap: balance; }
 }
+
+@keyframes shimmer {
+  0% { opacity: 0.5; }
+  50% { opacity: 1; }
+  100% { opacity: 0.5; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.skeleton-pulse {
+  animation: shimmer 1.4s ease-in-out infinite;
+}

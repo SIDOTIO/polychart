@@ -171,20 +171,14 @@ function SkeletonCard() {
       }}
     >
       <div style={{ display: "flex", gap: 10 }}>
-        <div style={{ width: 32, height: 32, borderRadius: 6, background: "var(--bg-elevated)" }} />
+        <div className="skeleton-pulse" style={{ width: 32, height: 32, borderRadius: 6, background: "var(--bg-elevated)" }} />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
-          <div style={{ height: 11, borderRadius: 3, background: "var(--bg-elevated)", width: "90%" }} />
-          <div style={{ height: 11, borderRadius: 3, background: "var(--bg-elevated)", width: "60%" }} />
+          <div className="skeleton-pulse" style={{ height: 11, borderRadius: 3, background: "var(--bg-elevated)", width: "90%" }} />
+          <div className="skeleton-pulse" style={{ height: 11, borderRadius: 3, background: "var(--bg-elevated)", width: "60%" }} />
         </div>
       </div>
-      <div style={{ height: 4, borderRadius: 2, background: "var(--bg-elevated)" }} />
-      <div style={{ height: 11, borderRadius: 3, background: "var(--bg-elevated)", width: "40%" }} />
-      <style>{`
-        @keyframes shimmer {
-          0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; }
-        }
-        .skeleton-card > * { animation: shimmer 1.4s ease-in-out infinite; }
-      `}</style>
+      <div className="skeleton-pulse" style={{ height: 4, borderRadius: 2, background: "var(--bg-elevated)" }} />
+      <div className="skeleton-pulse" style={{ height: 11, borderRadius: 3, background: "var(--bg-elevated)", width: "40%" }} />
     </div>
   );
 }

@@ -26,6 +26,7 @@ interface ChartState {
 
   // Actions
   setSelectedMarket: (market: Market, token: Token) => void;
+  clearSelectedMarket: () => void;
   setSelectedTimeframe: (tf: Timeframe) => void;
   setCandles: (tokenId: string, timeframe: Timeframe, candles: CandleData[]) => void;
   getCachedCandles: (tokenId: string, timeframe: Timeframe) => CandleData[] | null;
@@ -48,6 +49,9 @@ export const useChartStore = create<ChartState>()(
 
       setSelectedMarket: (market, token) =>
         set({ selectedMarket: market, selectedToken: token }),
+
+      clearSelectedMarket: () =>
+        set({ selectedMarket: null, selectedToken: null }),
 
       setSelectedTimeframe: (tf) =>
         set({ selectedTimeframe: tf }),

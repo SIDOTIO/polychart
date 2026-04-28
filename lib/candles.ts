@@ -46,7 +46,10 @@ export function aggregateTrades(
     });
   }
 
-  return candles.sort((a, b) => (a.time as number) - (b.time as number));
+  // Deduplicate and sort (last write wins for duplicate bucket timestamps)
+  const deduped = new Map<number, CandleData>();
+  for (const c of candles) deduped.set(c.time as number, c);
+  return Array.from(deduped.values()).sort((a, b) => (a.time as number) - (b.time as number));
 }
 
 // ─── Convert price history points to candles ──────────────────────────────────
@@ -59,7 +62,10 @@ export function priceHistoryToCandles(
 ): CandleData[] {
   if (points.length === 0) return [];
 
-  const sorted = [...points].sort((a, b) => a.t - b.t);
+  // Deduplicate points by timestamp before processing
+  const seen = new Map<number, PriceHistoryPoint>();
+  for (const p of points) seen.set(p.t, p);
+  const sorted = Array.from(seen.values()).sort((a, b) => a.t - b.t);
   const candles: CandleData[] = [];
 
   for (let i = 0; i < sorted.length; i++) {

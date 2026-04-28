@@ -200,7 +200,16 @@ export function CandlestickChart({
   useEffect(() => {
     if (!candleSeriesRef.current || !volumeSeriesRef.current || candles.length === 0) return;
 
-    const candleData: CandlestickData[] = candles.map((c) => ({
+    // Lightweight Charts requires strictly ascending timestamps with zero duplicates.
+    // Deduplicate by timestamp (last write wins), then sort ascending.
+    const deduped = Array.from(
+      candles.reduce((map, c) => {
+        map.set(c.time as number, c);
+        return map;
+      }, new Map<number, typeof candles[0]>()).values()
+    ).sort((a, b) => (a.time as number) - (b.time as number));
+
+    const candleData: CandlestickData[] = deduped.map((c) => ({
       time: c.time as Time,
       open: c.open,
       high: c.high,
@@ -208,7 +217,7 @@ export function CandlestickChart({
       close: c.close,
     }));
 
-    const volumeData: HistogramData[] = candles.map((c) => ({
+    const volumeData: HistogramData[] = deduped.map((c) => ({
       time: c.time as Time,
       value: c.value,
       color: c.close >= c.open ? "rgba(38,166,154,0.5)" : "rgba(239,83,80,0.5)",

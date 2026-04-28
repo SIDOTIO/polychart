@@ -121,3 +121,73 @@ The `/markets?search=` endpoint on the CLOB API occasionally returns 429s during
 - Wired `SearchBar` into the main layout
 
 ---
+
+### April 28, 2026 — Session 3: Chart, Data Layer, Header, Drawings — Full MVP Wire-up
+
+**Goal:** Everything working end-to-end. Search a market → see a real candlestick chart.
+
+**The chart component (`components/CandlestickChart.tsx`):**
+
+Lightweight Charts v4 runs entirely in the browser (it writes directly to a canvas element), so the component needs to be dynamically imported with `ssr: false`. That's a Next.js thing — on the server there's no DOM, so any library that touches `window` or `document` at import time will crash the build. `next/dynamic` defers the import to the client only.
+
+The chart initialization happens inside a `useEffect` that fires once on mount. Key config decisions:
+- Price scale formatted as `%` (e.g. `64.3%`) instead of raw `0.643` — makes reading levels much more natural
+- Volume histogram overlaid on the same pane at 18% height (bottom). Didn't want a separate panel taking up space — the chart is already small enough. Can revisit if it's visually noisy.
+- Green/red colors match TradingView standard (`#26a69a` / `#ef5350`) — muscle memory for anyone who uses TradingView
+- OHLC tooltip is a floating bar in the top-left of the chart, not a popup near the cursor. This is deliberate — a popup near the crosshair blocks the candles you're trying to read. The top-left position is where TradingView puts it too.
+- ResizeObserver on the container so the chart fills its parent perfectly as the window resizes
+
+**The drawing tool:**
+
+Used Lightweight Charts' built-in `createPriceLine` API. This gives us dashed horizontal lines with axis labels for free — no custom canvas drawing needed. When the user clicks H-Line mode, the chart's `subscribeClick` handler fires and converts the `y` coordinate to a price using `series.coordinateToPrice()`. The line immediately appears.
+
+Drawings persist to `localStorage` via the Zustand store. Each drawing is keyed by `marketSlug:timeframe` — so your 1H levels and 4H levels are stored separately (they're different charts, different context). When you reload, your lines come back automatically.
+
+Keyboard shortcut: `H` to enter H-line mode, `ESC` to cancel. Follows the same pattern as TradingView.
+
+**The data hook (`hooks/useCandles.ts`):**
+
+This is where the interesting tradeoffs live. The core question: where does the OHLCV data come from?
+
+Option A — `/prices-history` endpoint: Fast. Single request. Returns pre-bucketed close prices. The downside is the wicks are synthesized (we estimate high/low from adjacent closes), not real. For ICT analysis, wick accuracy matters — a real wick that sweeps a liquidity level looks very different from a synthesized one.
+
+Option B — `/trades` endpoint: Returns every individual trade. Real wicks, real OHLCV. The downside is pagination — active markets on long timeframes can have thousands of trades. Fetching 2 months of 4H data via paginated trade history could take 10+ seconds.
+
+**Decision:** Hybrid. Fetch both in parallel (`Promise.allSettled`). If we got ≥50 trades, use trade aggregation (real wicks). Otherwise fall back to price history (synthetic wicks, but fast). `Promise.allSettled` instead of `Promise.all` means if one fetch fails, we still render whatever we got — better degraded experience than a hard error.
+
+30-second polling was kept intentionally simple: re-fetch the same window and merge via `mergeCandles()`. The merge function is a simple Map deduplication — existing candles plus incoming candles, incoming wins on conflict.
+
+**Market header (`components/MarketHeader.tsx`):**
+
+Shows: title (with outcome label for multi-outcome markets), Yes % + No %, 24h volume, liquidity, expiry, and a direct link to Polymarket. Updates every 30 seconds via the same polling pattern as the candle data. One edge case: the link opens `polymarket.com/event/{slug}` — some markets use a different URL structure but this covers ~95% of cases.
+
+**Struggles this session:**
+
+- **SSR crash on Lightweight Charts**: Spent time debugging a `window is not defined` error before realizing the chart component needed `dynamic(..., { ssr: false })`. Adding that fixed it immediately. Now documented in the DEVLOG so I don't forget.
+- **Zustand `persist` + candle cache**: Initially tried to persist the candle cache to localStorage. Bad idea — serializing/deserializing hundreds of candles on every page load was noticeably slow. Moved to `partialize` so only drawings and timeframe preference persist.
+- **Coordinate-to-price for drawings**: LW Charts `chart.subscribeClick` gives you the point coordinates, but converting `y` to a price requires calling `series.coordinateToPrice(y)` on the series (not the chart). Took a few tries to get the ref structure right so the click handler had access to the right series instance.
+
+**What's in the repo now:**
+```
+components/
+  CandlestickChart.tsx   — LW Charts wrapper, OHLC tooltip, volume bars, price line drawings
+  TimeframeSelector.tsx  — 1m / 5m / 15m / 1H / 4H tab row
+  DrawingToolbar.tsx     — H-Line button + Clear all
+  ChartContainer.tsx     — orchestrates chart + toolbars + loading/error states
+  MarketHeader.tsx       — live market info bar, 30s refresh, Polymarket link
+hooks/
+  useCandles.ts          — hybrid fetch strategy, 30s polling, cache-first
+  useDrawings.ts         — drawing CRUD wired to Zustand store
+app/page.tsx             — full layout wired together
+```
+
+**MVP status:** Functionally complete for local testing. The full flow works:
+1. Type a market name in the sidebar
+2. Click a result
+3. See a live candlestick chart with volume
+4. Switch timeframes
+5. Draw horizontal lines that persist across page reloads
+
+**Next:** Test locally, collect feedback on layout/UX, then deploy to Vercel.
+
+---

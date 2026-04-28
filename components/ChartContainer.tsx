@@ -7,6 +7,7 @@ import { DrawingToolbar } from "./DrawingToolbar";
 import { useCandles } from "@/hooks/useCandles";
 import { useDrawings } from "@/hooks/useDrawings";
 import { useChartStore } from "@/store/chartStore";
+import { MarketGrid } from "./MarketGrid";
 
 // Dynamic import to avoid SSR (Lightweight Charts uses DOM APIs)
 const CandlestickChart = dynamic(
@@ -40,27 +41,7 @@ export function ChartContainer() {
   );
 
   if (!selectedMarket) {
-    return (
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 12,
-          color: "var(--text-muted)",
-        }}
-      >
-        <svg width="40" height="40" viewBox="0 0 40 40" fill="none" opacity="0.3">
-          <rect x="4" y="28" width="6" height="8" rx="1" fill="currentColor" />
-          <rect x="13" y="20" width="6" height="16" rx="1" fill="currentColor" />
-          <rect x="22" y="12" width="6" height="24" rx="1" fill="currentColor" />
-          <rect x="31" y="6" width="6" height="30" rx="1" fill="currentColor" />
-        </svg>
-        <span style={{ fontSize: 13 }}>Search for a market to start charting</span>
-      </div>
-    );
+    return <MarketGrid />;
   }
 
   return (

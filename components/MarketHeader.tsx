@@ -79,15 +79,20 @@ export function MarketHeader() {
       <div
         style={{
           height: 52,
+          minHeight: 52,
           borderBottom: "1px solid var(--border)",
           display: "flex",
           alignItems: "center",
           padding: "0 16px",
-          color: "var(--text-muted)",
-          fontSize: 13,
+          gap: 8,
         }}
       >
-        Select a market to start charting
+        <span style={{ color: "var(--text-muted)", fontSize: 12 }}>
+          Click any market below to open its chart
+        </span>
+        <span style={{ marginLeft: "auto", color: "var(--text-muted)", fontSize: 11, opacity: 0.5 }}>
+          30s auto-refresh
+        </span>
       </div>
     );
   }

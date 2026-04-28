@@ -191,3 +191,85 @@ app/page.tsx             — full layout wired together
 **Next:** Test locally, collect feedback on layout/UX, then deploy to Vercel.
 
 ---
+
+### April 28, 2026 — Session 4: Critical Bug Fixes
+
+**Problems hit:**
+
+**1. Search returned "No markets found" — always**
+
+The `searchMarkets()` function was calling `clob.polymarket.com/markets?search={query}`. Turns out the CLOB API simply ignores the `search` parameter — it's not documented anywhere, it just silently returns an empty result or a generic list regardless of what you type. Discovered this by checking the raw response in a debug endpoint.
+
+Fix: Switched to the Gamma API (`gamma-api.polymarket.com/markets?search={query}`). Gamma is Polymarket's metadata API, which actually supports keyword search and returns richer market data (images, descriptions, slugs). Search works correctly now.
+
+**2. CORS blocked all API calls**
+
+Once we switched to calling Gamma API from the browser, CORS kicked in. Browsers block cross-origin requests unless the server explicitly allows them. Polymarket's Gamma API does not set the right CORS headers for arbitrary origins.
+
+Fix: Created Next.js API route proxies (`app/api/markets/route.ts`, `app/api/prices-history/route.ts`, etc.) that make the fetch server-side and return the response to the browser. Server-to-server calls have no CORS restrictions. All external API calls now go through `/api/*` routes.
+
+**3. All search results filtered out — empty token arrays**
+
+After routing through Gamma, the market cards all had empty `tokens` arrays. Our parsing code expected `tokens` to be a top-level array on each market object (CLOB API shape). Gamma API encodes these as JSON **strings**:
+
+```
+outcomes:      "[\"Yes\",\"No\"]"       ← string, not array
+outcomePrices: "[\"0.535\",\"0.465\"]"  ← string, not array
+clobTokenIds:  "[\"abc123\",\"xyz456\"]" ← string, not array
+```
+
+You have to `JSON.parse()` each field. Added a `parseJsonArr()` utility and rewrote `gammaToMarket()` to parse these fields correctly. Markets now display with proper Yes/No prices.
+
+**4. Duplicate tokens in search results (Yes AND No listed as separate rows)**
+
+For binary markets, both the Yes and No tokens were showing up as separate search result rows. Confusing and visually cluttered. Fix: For 2-token (binary) markets, only show the Yes token. Multi-outcome markets still show each token separately.
+
+**5. Hydration mismatch (React server/client HTML divergence)**
+
+Had some inline `<style>` tags with `@keyframes` in component files. The server HTML-escapes `>` to `&gt;` but client-side React doesn't, causing a mismatch and a console error. Fix: moved all `@keyframes` and animation definitions into `app/globals.css`, removed all `<style>` tags from components.
+
+---
+
+### April 28, 2026 — Session 5: Product-Level Redesign
+
+**Context:** The app worked but felt like a developer prototype. The goal shifted: "act as a product manager and marketing analyst at a billion-dollar SWE startup — turn this into a multi-million dollar platform."
+
+Real talk: prediction market charting is a niche tool, but the people who want it are high-intent power users. They're used to TradingView's UI. If this looks like a hackathon project they'll dismiss it immediately. The bar is: it needs to look like something you'd pay for.
+
+**Design philosophy for this pass:**
+
+The reference point was TradingView's dark mode — dense, information-rich, no wasted space, no decorative chrome. Every pixel earns its place. We're not doing gradients and glow effects for the sake of it. The hierarchy should be: chart > market data > navigation. Everything else recedes.
+
+**What changed:**
+
+**Landing page (MarketGrid):**
+Previously: just a search bar, nothing to interact with until you typed.
+Now: a full market grid like Polymarket's own landing page, but more data-dense. Category tabs across the top (🔥 Top Volume / 🗳️ Politics / ₿ Crypto / 🏆 Sports / 📈 Finance). Each market card shows: market image, question, probability bar with live percentage, 24h volume, expiry countdown. Cards have a hover lift effect (subtle transform + shadow) that makes them feel interactive without being flashy.
+
+Skeleton loading cards during fetch — same shape as real cards, pulsing animation. Reduces perceived load time and avoids the jarring "nothing → sudden content" flash.
+
+**MarketHeader:**
+Added a LIVE badge with a pulsing green dot and a "Xsec" counter (seconds since last data refresh). This serves two purposes: reassures users that data is fresh, and visually communicates that this is a live feed — not a static snapshot.
+
+YES/NO probability bars: instead of just text percentages, each outcome now has a mini progress bar showing the probability as a visual proportion. Color-coded: green above 60%, red below 40%, blue in between. At a glance you know where the market is without reading a number.
+
+Market image from Gamma API displayed next to the title. Polymarket has images for almost every market — it's free signal that makes the header feel polished.
+
+Expiry urgency: if a market expires within 3 days, the expiry date highlights in amber/yellow. Markets expiring today are especially flagged. Traders need to know when a position needs to be closed.
+
+**ChartContainer:**
+Added a "← Markets" back button in the toolbar so users can return to the landing grid without having to clear the search input. Small thing, but navigation should always be obvious.
+
+Draw mode floating hint: when H-line mode is active, a subtle floating banner appears below the toolbar: "Click chart to place line · ESC to cancel". Removes ambiguity about what the tool does and how to exit it.
+
+**Codebase:**
+Added `clearSelectedMarket()` to the Zustand store as a proper action (previously the back button was hacky — calling `setSelectedMarket(null, null)` which TypeScript correctly rejected).
+
+`livePulse` keyframe added to globals.css for the LIVE badge animation — a gentle opacity/glow cycle that doesn't distract.
+
+**What this session proved:**
+The gap between "works" and "feels professional" is mostly UX surface polish: loading states, empty states, live data feedback, navigation clarity, and visual hierarchy. None of these are technically complex — they're product decisions made intentionally.
+
+**Current state:** Full MVP deployed on GitHub. Ready for local testing and then Vercel deployment.
+
+---

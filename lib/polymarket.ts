@@ -7,31 +7,16 @@ import type {
   Trade,
 } from "@/types/polymarket";
 
-const CLOB_URL = "https://clob.polymarket.com";
-const GAMMA_URL = "https://gamma-api.polymarket.com";
+// All requests go through our own Next.js API routes (server-side proxies)
+// so there are zero CORS issues regardless of environment.
+const API = "/api";
 
-// ─── Rate limiter (CLOB only — 1 req/sec) ────────────────────────────────────
-
-let lastClobRequest = 0;
-async function clobRateLimit() {
-  const now = Date.now();
-  const wait = 1000 - (now - lastClobRequest);
-  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-  lastClobRequest = Date.now();
-}
-
-async function clobFetch<T>(path: string): Promise<T> {
-  await clobRateLimit();
-  const url = `${CLOB_URL}${path}`;
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!res.ok) throw new Error(`CLOB error ${res.status}: ${url}`);
-  return res.json() as Promise<T>;
-}
-
-async function gammaFetch<T>(path: string): Promise<T> {
-  const url = `${GAMMA_URL}${path}`;
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!res.ok) throw new Error(`Gamma error ${res.status}: ${url}`);
+async function apiFetch<T>(path: string): Promise<T> {
+  const res = await fetch(path, { headers: { Accept: "application/json" } });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`API error ${res.status}: ${path} — ${body}`);
+  }
   return res.json() as Promise<T>;
 }
 
@@ -46,8 +31,8 @@ interface GammaMarket {
   market_slug?: string;
   endDateIso?: string;
   end_date_iso?: string;
-  liquidity: string | number;
-  volume: string | number;
+  liquidity?: string | number;
+  volume?: string | number;
   volume24hr?: number;
   volume_24hr?: number;
   active: boolean;
@@ -92,34 +77,42 @@ function gammaToMarket(g: GammaMarket): Market {
   };
 }
 
-// ─── Search Markets (Gamma API — supports keyword search) ─────────────────────
+// ─── Search Markets ───────────────────────────────────────────────────────────
 
 export async function searchMarkets(query: string): Promise<Market[]> {
   if (!query.trim()) return [];
-  const encoded = encodeURIComponent(query.trim());
-  const data = await gammaFetch<GammaMarket[]>(
-    `/markets?search=${encoded}&active=true&closed=false&limit=20`
-  );
+  const params = new URLSearchParams({
+    search: query.trim(),
+    active: "true",
+    closed: "false",
+    limit: "20",
+  });
+  const data = await apiFetch<GammaMarket[]>(`${API}/markets?${params}`);
   return (Array.isArray(data) ? data : [])
     .map(gammaToMarket)
     .filter((m) => m.tokens.length >= 2);
 }
 
-// ─── Popular Markets (Gamma API — sorted by 24h volume) ───────────────────────
+// ─── Popular Markets ──────────────────────────────────────────────────────────
 
 export async function getPopularMarkets(limit = 20): Promise<Market[]> {
-  const data = await gammaFetch<GammaMarket[]>(
-    `/markets?active=true&closed=false&order=volume24hr&ascending=false&limit=${limit}`
-  );
+  const params = new URLSearchParams({
+    active: "true",
+    closed: "false",
+    order: "volume24hr",
+    ascending: "false",
+    limit: String(limit),
+  });
+  const data = await apiFetch<GammaMarket[]>(`${API}/markets?${params}`);
   return (Array.isArray(data) ? data : [])
     .map(gammaToMarket)
     .filter((m) => m.tokens.length >= 2 && m.volume_24hr > 1000);
 }
 
-// ─── Get Single Market (CLOB — needed for live price refresh) ─────────────────
+// ─── Get Single Market (for live header refresh) ──────────────────────────────
 
 export async function getMarket(conditionId: string): Promise<Market> {
-  return clobFetch<Market>(`/markets/${conditionId}`);
+  return apiFetch<Market>(`${API}/clob-market?id=${encodeURIComponent(conditionId)}`);
 }
 
 // ─── Price History ────────────────────────────────────────────────────────────
@@ -130,9 +123,13 @@ export async function getPriceHistory(
   startTs: number,
   endTs: number
 ): Promise<PriceHistoryPoint[]> {
-  const data = await clobFetch<PriceHistoryResponse>(
-    `/prices-history?market=${tokenId}&startTs=${startTs}&endTs=${endTs}&fidelity=${fidelity}`
-  );
+  const params = new URLSearchParams({
+    market: tokenId,
+    startTs: String(startTs),
+    endTs: String(endTs),
+    fidelity: String(fidelity),
+  });
+  const data = await apiFetch<PriceHistoryResponse>(`${API}/prices-history?${params}`);
   return data.history ?? [];
 }
 
@@ -142,15 +139,15 @@ export async function getTrades(
   tokenId: string,
   since?: number
 ): Promise<Trade[]> {
-  let path = `/trades?market=${tokenId}&limit=500`;
-  if (since) path += `&after=${since}`;
+  const params = new URLSearchParams({ market: tokenId, limit: "500" });
+  if (since) params.set("after", String(since));
 
   const trades: Trade[] = [];
   let cursor: string | undefined;
 
   while (true) {
-    const url = cursor ? `${path}&next_cursor=${cursor}` : path;
-    const data = await clobFetch<TradesResponse>(url);
+    if (cursor) params.set("next_cursor", cursor);
+    const data = await apiFetch<TradesResponse>(`${API}/trades?${params}`);
     trades.push(...(data.data ?? []));
     if (!data.next_cursor || data.next_cursor === "LTE=" || data.data.length === 0) break;
     cursor = data.next_cursor;
